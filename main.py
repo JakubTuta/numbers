@@ -1,4 +1,26 @@
+import numpy as np
 import pygame
+from tensorflow import keras
+
+# prepare data model
+# 28 * 28 = 784 input nodes
+# 784 / 4 = 196 nodes in hidden layer 1
+# 784 / 4 = 196 nodes in hidden layer 2
+# 10 nodes in output layer (0-9)
+model = keras.Sequential(
+    [
+        keras.layers.Flatten(input_shape=(28, 28)),
+        keras.layers.Dense(196, activation="linear"),
+        keras.layers.Dense(196, activation="linear"),
+        keras.layers.Dense(10, activation="softmax"),
+    ]
+)
+
+model.compile(
+    optimizer="adam",
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"],
+)
 
 pygame.init()
 font = pygame.font.SysFont(None, 50)
@@ -12,6 +34,8 @@ COLORS = {
     "gray": (127, 127, 127),
 }
 
+DATA_DOWNLOADED = False
+
 TILES = 28
 TOP_PADDING = 100
 WINDOW_WIDTH, WINDOW_HEIGHT = 700, 700 + TOP_PADDING
@@ -23,7 +47,7 @@ BUTTON_POS_X, BUTTON_POS_Y = (
 )
 
 
-board = [[" " for _ in range(28)] for __ in range(28)]
+board = np.zeros((TILES, TILES), dtype=int)
 
 
 def draw(WIN):
@@ -58,27 +82,27 @@ def draw(WIN):
         ),
     )
 
-    for y, row in enumerate(board):
-        for x, col in enumerate(row):
-            if col == " ":
+    for row in range(TILES):
+        for col in range(TILES):
+            if board[row, col]:
                 pygame.draw.rect(
                     WIN,
-                    COLORS["tile"],
+                    COLORS["black"],
                     (
-                        x * TILE_SIZE,
-                        TOP_PADDING + (y * TILE_SIZE),
+                        col * TILE_SIZE,
+                        TOP_PADDING + (row * TILE_SIZE),
                         TILE_SIZE,
                         TILE_SIZE,
                     ),
                 )
 
-            elif col == "*":
+            else:
                 pygame.draw.rect(
                     WIN,
-                    COLORS["black"],
+                    COLORS["tile"],
                     (
-                        x * TILE_SIZE,
-                        TOP_PADDING + (y * TILE_SIZE),
+                        col * TILE_SIZE,
+                        TOP_PADDING + (row * TILE_SIZE),
                         TILE_SIZE,
                         TILE_SIZE,
                     ),
@@ -87,18 +111,63 @@ def draw(WIN):
     pygame.display.update()
 
 
-def handleMouseClick(mousePos):
+def handleAI():
+    global DATA_DOWNLOADED
+
+    if not DATA_DOWNLOADED:
+        DATA_DOWNLOADED = True
+
+        # load images to train
+        (train_images, train_labels) = keras.datasets.mnist.load_data(path="mnist.npz")[
+            0
+        ]
+
+        # squash every pixel between 0 and 1
+        train_images = train_images / 255.0
+
+        # training the model
+        model.fit(train_images, train_labels, epochs=2)
+
+    board_reshaped = np.expand_dims(board, axis=0)
+    predictions = model.predict(board_reshaped)
+    print(f"{np.argmax(predictions[0])} - {round(max(predictions[0]) * 100, 2)}%")
+
+
+def checkIfBoardCorrect():
+    for row in range(TILES):
+        for col in range(TILES):
+            if board[row, col]:
+                return True
+    return False
+
+
+def clearBoard():
+    global board
+    board = np.zeros((TILES, TILES), dtype=int)
+
+
+def handleMouseClick(mousePos, mouseButton):
     mouseX, mouseY = mousePos
     if (
         BUTTON_POS_X <= mouseX <= BUTTON_POS_X + BUTTON_WIDTH
         and BUTTON_POS_Y <= mouseY <= BUTTON_POS_Y + BUTTON_HEIGHT
     ):
-        print("send to bot")
+        if not checkIfBoardCorrect():
+            return
+
+        handleAI()
+        clearBoard()
+        return
+
+    if mouseY < TOP_PADDING:
         return
 
     tileX, tileY = int(mouseX / TILE_SIZE), int((mouseY - TOP_PADDING) / TILE_SIZE)
-    if TILES >= tileY >= 0 and TILES >= tileX >= 0 and board[tileY][tileX] == " ":
-        board[tileY][tileX] = "*"
+    if TILES >= tileY >= 0 and TILES >= tileX >= 0:
+        if mouseButton[0]:
+            board[tileY, tileX] = 1
+        elif mouseButton[2]:
+            board[tileY, tileX] = 0
 
 
 def main():
@@ -113,9 +182,9 @@ def main():
                 running = False
                 break
 
-            if pygame.mouse.get_pressed()[0]:
+            if pygame.mouse.get_pressed()[0] or pygame.mouse.get_pressed()[2]:
                 mousePos = pygame.mouse.get_pos()
-                handleMouseClick(mousePos)
+                handleMouseClick(mousePos, pygame.mouse.get_pressed())
 
         draw(WIN)
 

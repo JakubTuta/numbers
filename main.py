@@ -2,26 +2,6 @@ import numpy as np
 import pygame
 from tensorflow import keras
 
-# prepare data model
-# 28 * 28 = 784 input nodes
-# 784 / 4 = 196 nodes in hidden layer 1
-# 784 / 4 = 196 nodes in hidden layer 2
-# 10 nodes in output layer (0-9)
-model = keras.Sequential(
-    [
-        keras.layers.Flatten(input_shape=(28, 28)),
-        keras.layers.Dense(196, activation="linear"),
-        keras.layers.Dense(196, activation="linear"),
-        keras.layers.Dense(10, activation="softmax"),
-    ]
-)
-
-model.compile(
-    optimizer="adam",
-    loss="sparse_categorical_crossentropy",
-    metrics=["accuracy"],
-)
-
 pygame.init()
 font = pygame.font.SysFont(None, 50)
 font2 = pygame.font.SysFont(None, 30)
@@ -34,7 +14,6 @@ COLORS = {
     "gray": (127, 127, 127),
 }
 
-DATA_DOWNLOADED = False
 
 TILES = 28
 TOP_PADDING = 100
@@ -46,6 +25,10 @@ BUTTON_POS_X, BUTTON_POS_Y = (
     TOP_PADDING - BUTTON_HEIGHT,
 )
 
+MODEL_EXISTS = True
+model = None
+LAST_NUMBER = ""
+PREDICTION = ""
 
 board = np.zeros((TILES, TILES), dtype=int)
 
@@ -82,6 +65,12 @@ def draw(WIN):
         ),
     )
 
+    lastNumberLabel = font2.render(f"Last number: {LAST_NUMBER}", True, COLORS["black"])
+    WIN.blit(lastNumberLabel, (10, 10))
+
+    predictionLabel = font2.render(f"Prediction: {PREDICTION}%", True, COLORS["black"])
+    WIN.blit(predictionLabel, (10, 50))
+
     for row in range(TILES):
         for col in range(TILES):
             if board[row, col]:
@@ -112,25 +101,14 @@ def draw(WIN):
 
 
 def handleAI():
-    global DATA_DOWNLOADED
-
-    if not DATA_DOWNLOADED:
-        DATA_DOWNLOADED = True
-
-        # load images to train
-        (train_images, train_labels) = keras.datasets.mnist.load_data(path="mnist.npz")[
-            0
-        ]
-
-        # squash every pixel between 0 and 1
-        train_images = train_images / 255.0
-
-        # training the model
-        model.fit(train_images, train_labels, epochs=2)
+    global LAST_NUMBER
+    global PREDICTION
 
     board_reshaped = np.expand_dims(board, axis=0)
     predictions = model.predict(board_reshaped)
-    print(f"{np.argmax(predictions[0])} - {round(max(predictions[0]) * 100, 2)}%")
+
+    LAST_NUMBER = np.argmax(predictions[0])
+    PREDICTION = round(max(predictions[0]) * 100, 2)
 
 
 def checkIfBoardCorrect():
@@ -170,6 +148,47 @@ def handleMouseClick(mousePos, mouseButton):
             board[tileY, tileX] = 0
 
 
+def prepareAI():
+    global model
+
+    if not MODEL_EXISTS:
+        # load images to train
+        (train_images, train_labels) = keras.datasets.mnist.load_data(path="mnist.npz")[
+            0
+        ]
+
+        # squash every pixel between 0 and 1
+        train_images = keras.utils.normalize(train_images, axis=1)
+
+        # prepare data model
+        # 28 * 28 = 784 input nodes
+        # 128 nodes in hidden layer 1
+        # 128 nodes in hidden layer 2
+        # 10 nodes in output layer (0-9)
+        model = keras.Sequential(
+            [
+                keras.layers.Flatten(input_shape=(TILES, TILES)),
+                keras.layers.Dense(128, activation="relu"),
+                keras.layers.Dense(128, activation="relu"),
+                keras.layers.Dense(10, activation="softmax"),
+            ]
+        )
+
+        model.compile(
+            optimizer="adam",
+            loss="sparse_categorical_crossentropy",
+            metrics=["accuracy"],
+        )
+
+        # training the model
+        model.fit(train_images, train_labels, epochs=3)
+
+        model.save("handwritten.model")
+
+    else:
+        model = keras.models.load_model("handwritten.model")
+
+
 def main():
     WIN = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption("NUMBERS")
@@ -190,4 +209,5 @@ def main():
 
 
 if __name__ == "__main__":
+    prepareAI()
     main()

@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pygame
 from tensorflow import keras
@@ -25,7 +27,6 @@ BUTTON_POS_X, BUTTON_POS_Y = (
     TOP_PADDING - BUTTON_HEIGHT,
 )
 
-MODEL_EXISTS = True
 model = None
 LAST_NUMBER = ""
 PREDICTION = ""
@@ -148,10 +149,17 @@ def handleMouseClick(mousePos, mouseButton):
             board[tileY, tileX] = 0
 
 
+def folderExists():
+    folder_name = "handwritten.model"
+    folder_path = os.path.join("./", folder_name)
+
+    return os.path.exists(folder_path) and os.path.isdir(folder_path)
+
+
 def prepareAI():
     global model
 
-    if not MODEL_EXISTS:
+    if not folderExists():
         # load images to train
         (train_images, train_labels) = keras.datasets.mnist.load_data(path="mnist.npz")[
             0

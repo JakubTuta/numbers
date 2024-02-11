@@ -34,15 +34,7 @@ PREDICTION = ""
 board = np.zeros((TILES, TILES), dtype=int)
 
 
-def draw(WIN):
-    WIN.fill(COLORS["background"])
-
-    text = "Draw the number:"
-    textLabel = font.render(f"{text}", True, COLORS["black"])
-    textWidth, textHeight = font.size(f"{text}")
-
-    WIN.blit(textLabel, (WINDOW_WIDTH / 2 - textWidth / 2, 10))
-
+def draw_button(WIN):
     pygame.draw.rect(
         WIN,
         COLORS["gray"],
@@ -66,37 +58,47 @@ def draw(WIN):
         ),
     )
 
+
+def draw_text(WIN):
+    text = "Draw the number:"
+    textLabel = font.render(f"{text}", True, COLORS["black"])
+    textWidth = font.size(f"{text}")[0]
+
+    WIN.blit(textLabel, (WINDOW_WIDTH / 2 - textWidth / 2, 10))
+
     lastNumberLabel = font2.render(f"Last number: {LAST_NUMBER}", True, COLORS["black"])
     WIN.blit(lastNumberLabel, (10, 10))
 
     predictionLabel = font2.render(f"Prediction: {PREDICTION}%", True, COLORS["black"])
     WIN.blit(predictionLabel, (10, 50))
 
+
+def draw_board(WIN):
     for row in range(TILES):
         for col in range(TILES):
             if board[row, col]:
-                pygame.draw.rect(
-                    WIN,
-                    COLORS["black"],
-                    (
-                        col * TILE_SIZE,
-                        TOP_PADDING + (row * TILE_SIZE),
-                        TILE_SIZE,
-                        TILE_SIZE,
-                    ),
-                )
-
+                color = "black"
             else:
-                pygame.draw.rect(
-                    WIN,
-                    COLORS["tile"],
-                    (
-                        col * TILE_SIZE,
-                        TOP_PADDING + (row * TILE_SIZE),
-                        TILE_SIZE,
-                        TILE_SIZE,
-                    ),
-                )
+                color = "tile"
+
+            pygame.draw.rect(
+                surface=WIN,
+                color=COLORS[color],
+                rect=(
+                    col * TILE_SIZE,
+                    TOP_PADDING + (row * TILE_SIZE),
+                    TILE_SIZE,
+                    TILE_SIZE,
+                ),
+            )
+
+
+def draw(WIN):
+    WIN.fill(COLORS["background"])
+
+    draw_button(WIN)
+    draw_text(WIN)
+    draw_board(WIN)
 
     pygame.display.update()
 
@@ -188,7 +190,6 @@ def prepareAI():
             metrics=["accuracy"],
         )
 
-        # training the model
         model.fit(train_images, train_labels, epochs=3)
 
         model.save("handwritten.model")
